@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { jsPDF } from "jspdf";
 import "jspdf-autotable";
+import { FaEdit, FaTrashAlt, FaPlus } from "react-icons/fa"; // Icons for Edit, Delete, and Add
 
 const BillingSystem = () => {
   const [username, setUsername] = useState("");
@@ -13,6 +14,7 @@ const BillingSystem = () => {
   const [totalAmount, setTotalAmount] = useState(0);
   const [showBillForm, setShowBillForm] = useState(false);
   const [editIndex, setEditIndex] = useState(null);
+  const [priceType, setPriceType] = useState("quantity"); // Price type selection
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -41,9 +43,13 @@ const BillingSystem = () => {
     }
   };
 
+  const handlePriceTypeChange = (e) => {
+    setPriceType(e.target.value);
+  };
+
   const startBilling = () => {
     if (!username || !phoneNumber) {
-      alert("Please enter both Customer Name and Phone Number to proceed.");
+      alert("Please enter all required fields.");
       return;
     }
     if (phoneNumber.length !== 10) {
@@ -60,11 +66,17 @@ const BillingSystem = () => {
     }
 
     let totalPrice = 0;
-    if (pricePerKg) totalPrice = parseFloat(pricePerKg) * parseFloat(quantity);
-    else if (pricePerQuantity)
-      totalPrice = parseFloat(pricePerQuantity) * parseFloat(quantity);
 
-    if (totalPrice <= 0) {
+    // Ensure quantity and price values are valid numbers
+    const validQuantity = parseFloat(quantity);
+    const validPricePerKg = parseFloat(pricePerKg);
+    const validPricePerQuantity = parseFloat(pricePerQuantity);
+
+    if (pricePerKg && validQuantity > 0 && !isNaN(validPricePerKg)) {
+      totalPrice = validPricePerKg * validQuantity;
+    } else if (pricePerQuantity && validQuantity > 0 && !isNaN(validPricePerQuantity)) {
+      totalPrice = validPricePerQuantity * validQuantity;
+    } else {
       alert("Invalid quantity or price!");
       return;
     }
@@ -73,7 +85,7 @@ const BillingSystem = () => {
       product: productName,
       pricePerKg: pricePerKg || "N/A",
       pricePerQuantity: pricePerQuantity || "N/A",
-      quantity,
+      quantity: validQuantity,
       totalPrice,
     };
 
@@ -86,9 +98,9 @@ const BillingSystem = () => {
       setCartItems([...cartItems, newItem]);
     }
 
-    setTotalAmount(
-      cartItems.reduce((acc, item) => acc + item.totalPrice, totalPrice)
-    );
+    // Calculate total amount
+    const newTotalAmount = cartItems.reduce((acc, item) => acc + item.totalPrice, totalPrice);
+    setTotalAmount(newTotalAmount);
 
     setProductName("");
     setQuantity("");
@@ -135,12 +147,12 @@ const BillingSystem = () => {
     const doc = new jsPDF();
 
     doc.setFontSize(18);
-    doc.text("Store Billing Receipt", 105, 20, null, null, "center");
+    doc.text("Billing Receipt", 105, 20, null, null, "center");
 
     doc.setFontSize(12);
-    doc.text(`Customer: ${bill.username}`, 20, 30);
-    doc.text(`Phone: ${bill.phoneNumber}`, 20, 40);
-    doc.text(`Date: ${bill.date}`, 20, 50);
+    doc.text(`Customer: ${bill.username}`, 20, 40);
+    doc.text(`Phone: ${bill.phoneNumber}`, 20, 50);
+    doc.text(`Date: ${bill.date}`, 20, 60);
 
     const tableColumn = [
       "Product",
@@ -149,6 +161,7 @@ const BillingSystem = () => {
       "Quantity",
       "Total Price (₹)",
     ];
+
     const tableRows = bill.cartItems.map((item) => [
       item.product,
       item.pricePerQuantity,
@@ -157,44 +170,62 @@ const BillingSystem = () => {
       item.totalPrice.toFixed(2),
     ]);
 
-    doc.autoTable(tableColumn, tableRows, { startY: 60 });
+    doc.autoTable(tableColumn, tableRows, { startY: 70 });
     doc.text(`Total Amount: ₹${bill.totalAmount.toFixed(2)}`, 20, doc.lastAutoTable.finalY + 10);
 
     doc.save(`${bill.username}_bill_${Date.now()}.pdf`);
   };
 
+  const handleEditItem = (index) => {
+    const item = cartItems[index];
+    setProductName(item.product);
+    setQuantity(item.quantity);
+    setPricePerKg(item.pricePerKg);
+    setPricePerQuantity(item.pricePerQuantity);
+    setEditIndex(index);
+  };
+
+  const handleDeleteItem = (index) => {
+    const updatedCart = cartItems.filter((_, idx) => idx !== index);
+    setCartItems(updatedCart);
+
+    // Recalculate total amount
+    const newTotalAmount = updatedCart.reduce((acc, item) => acc + item.totalPrice, 0);
+    setTotalAmount(newTotalAmount);
+  };
+
   return (
-    <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-md space-y-6">
-      <h1 className="text-3xl font-extrabold text-center text-indigo-600">Store Billing System</h1>
+    <div className="min-h-screen w-full bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-700 text-white p-6 flex flex-col items-center justify-between" style={{ height: '100vh' }}>
+      <h1 className="text-4xl font-extrabold text-center text-yellow-300 mb-6">Store Billing System</h1>
 
       {!showBillForm && (
-        <div className="space-y-6">
+        <div className="w-full max-w-4xl p-8 space-y-6">
           <div>
-            <label className="font-semibold text-gray-700">Customer Name</label>
+            <label className="block text-lg font-semibold mb-2">Customer Name</label>
             <input
               type="text"
               name="username"
               value={username}
               onChange={handleInputChange}
-              className="w-full p-4 rounded-md border-2 border-gray-300 focus:ring-2 focus:ring-indigo-500"
+              className="w-full p-2 text-sm rounded-md border-2 border-pink-500 focus:ring-2 focus:ring-pink-400 text-black"
               placeholder="Enter customer name"
             />
           </div>
           <div>
-            <label className="font-semibold text-gray-700">Phone Number</label>
+            <label className="block text-lg font-semibold mb-2">Phone Number</label>
             <input
               type="tel"
               name="phoneNumber"
               value={phoneNumber}
               onChange={handleInputChange}
-              className="w-full p-4 rounded-md border-2 border-gray-300 focus:ring-2 focus:ring-indigo-500"
+              className="w-full p-2 text-sm rounded-md border-2 border-pink-500 focus:ring-2 focus:ring-pink-400 text-black"
               placeholder="Enter phone number"
               maxLength="10"
             />
           </div>
           <button
             onClick={startBilling}
-            className="w-full py-4 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition duration-300"
+            className="w-full py-4 bg-yellow-400 text-black rounded-md text-xl font-bold hover:bg-yellow-500 transition duration-300"
           >
             Start Billing
           </button>
@@ -203,109 +234,129 @@ const BillingSystem = () => {
 
       {showBillForm && (
         <>
-          <div className="space-y-6">
+          <div className="w-full max-w-4xl p-8 space-y-6">
+            {/* Product Name */}
             <div>
-              <label className="font-semibold text-gray-700">Product Name</label>
+              <label className="block text-lg font-semibold mb-2">Product Name</label>
               <input
                 type="text"
                 name="productName"
                 value={productName}
                 onChange={handleInputChange}
-                className="w-full p-4 rounded-md border-2 border-gray-300 focus:ring-2 focus:ring-indigo-500"
+                className="w-full p-2 text-sm rounded-md border-2 border-purple-500 focus:ring-2 focus:ring-purple-400 text-black"
                 placeholder="Enter product name"
               />
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+            {/* Price Type */}
+            <div>
+              <label className="block text-lg font-semibold mb-2">Price Type</label>
+              <select
+                name="priceType"
+                value={priceType}
+                onChange={handlePriceTypeChange}
+                className="w-full p-2 text-sm rounded-md border-2 border-purple-500 focus:ring-2 focus:ring-purple-400 text-black"
+              >
+                <option value="quantity">Price per Quantity</option>
+                <option value="kg">Price per Kg</option>
+              </select>
+            </div>
+
+            {/* Quantity */}
+            <div>
+              <label className="block text-lg font-semibold mb-2">Quantity</label>
+              <input
+                type="number"
+                name="quantity"
+                value={quantity}
+                onChange={handleInputChange}
+                className="w-full p-2 text-sm rounded-md border-2 border-purple-500 focus:ring-2 focus:ring-purple-400 text-black"
+                placeholder="Enter quantity"
+                min="1"
+              />
+            </div>
+
+            {/* Price per Kg or Quantity */}
+            {priceType === "kg" ? (
               <div>
-                <label className="font-semibold text-gray-700">Price Per Kg (₹)</label>
+                <label className="block text-lg font-semibold mb-2">Price per Kg</label>
                 <input
                   type="number"
                   name="pricePerKg"
                   value={pricePerKg}
                   onChange={handleInputChange}
-                  className="w-full p-4 rounded-md border-2 border-gray-300 focus:ring-2 focus:ring-indigo-500"
+                  className="w-full p-2 text-sm rounded-md border-2 border-purple-500 focus:ring-2 focus:ring-purple-400 text-black"
                   placeholder="Enter price per kg"
-                  min="0.01"
-                  step="0.01"
+                  min="0"
                 />
               </div>
+            ) : (
               <div>
-                <label className="font-semibold text-gray-700">Price Per Quantity (₹)</label>
+                <label className="block text-lg font-semibold mb-2">Price per Quantity</label>
                 <input
                   type="number"
                   name="pricePerQuantity"
                   value={pricePerQuantity}
                   onChange={handleInputChange}
-                  className="w-full p-4 rounded-md border-2 border-gray-300 focus:ring-2 focus:ring-indigo-500"
+                  className="w-full p-2 text-sm rounded-md border-2 border-purple-500 focus:ring-2 focus:ring-purple-400 text-black"
                   placeholder="Enter price per quantity"
-                  min="0.01"
-                  step="0.01"
+                  min="0"
                 />
               </div>
-            </div>
-            <div>
-              <label className="font-semibold text-gray-700">Quantity</label>
-              <input
-                type="text"
-                name="quantity"
-                value={quantity}
-                onChange={handleInputChange}
-                className="w-full p-4 rounded-md border-2 border-gray-300 focus:ring-2 focus:ring-indigo-500"
-                placeholder="Enter quantity"
-                min="1"
-              />
-            </div>
+            )}
+
             <button
               onClick={addToCart}
-              className="w-full py-4 bg-green-600 text-white rounded-md hover:bg-green-700 transition duration-300"
+              className="w-full py-4 bg-yellow-400 text-black rounded-md text-xl font-bold hover:bg-yellow-500 transition duration-300"
             >
-              {editIndex !== null ? "Update Product" : "Add Product"}
+              Add to Cart
             </button>
           </div>
 
-          <div className="mt-8 overflow-x-auto">
-            <h2 className="text-2xl font-bold text-gray-700">Cart</h2>
-            <table className="w-full mt-4 border-collapse table-auto">
+          {/* Cart Table */}
+          <div className="w-full max-w-4xl bg-gradient-to-r from-green-500 to-blue-600 p-8 rounded-lg shadow-xl space-y-4">
+            <h2 className="text-2xl font-semibold text-yellow-300">Cart</h2>
+            <table className="w-full table-auto text-black">
               <thead>
-                <tr className="bg-gray-100 text-gray-700">
-                  <th className="p-4">Product</th>
-                  <th className="p-4">Price (₹)</th>
-                  <th className="p-4">Quantity</th>
-                  <th className="p-4">Total (₹)</th>
-                  <th className="p-4">Action</th>
+                <tr className="bg-purple-200">
+                  <th className="py-2 px-4 text-left">Product</th>
+                  <th className="py-2 px-4 text-left">Price per Quantity</th>
+                  <th className="py-2 px-4 text-left">Price per Kg</th>
+                  <th className="py-2 px-4 text-left">Quantity</th>
+                  <th className="py-2 px-4 text-left">Total Price</th>
+                  <th className="py-2 px-4 text-left">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {cartItems.map((item, index) => (
-                  <tr key={index} className="bg-gray-50">
-                    <td className="p-4">{item.product}</td>
-                    <td className="p-4">{item.pricePerQuantity || item.pricePerKg}</td>
-                    <td className="p-4">{item.quantity}</td>
-                    <td className="p-4">{item.totalPrice.toFixed(2)}</td>
-                    <td className="p-4">
-                      <button
-                        onClick={() => {
-                          setProductName(item.product);
-                          setQuantity(item.quantity);
-                          setPricePerKg(item.pricePerKg);
-                          setPricePerQuantity(item.pricePerQuantity);
-                          setEditIndex(index);
-                        }}
-                        className="text-yellow-400 hover:text-yellow-500"
-                      >
-                        Edit
-                      </button>
+                  <tr key={index} className="border-b">
+                    <td className="py-2 px-4">{item.product}</td>
+                    <td className="py-2 px-4">{item.pricePerQuantity}</td>
+                    <td className="py-2 px-4">{item.pricePerKg}</td>
+                    <td className="py-2 px-4">{item.quantity}</td>
+                    <td className="py-2 px-4">{item.totalPrice.toFixed(2)}</td>
+                    <td className="py-2 px-4 flex justify-between">
+                      <FaEdit
+                        onClick={() => handleEditItem(index)}
+                        className="cursor-pointer text-blue-600 text-3xl"
+                      />
+                      <FaTrashAlt
+                        onClick={() => handleDeleteItem(index)}
+                        className="cursor-pointer text-red-600 text-3xl"
+                      />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
 
-            <div className="flex justify-between items-center mt-6 text-gray-700">
-              <h3 className="text-xl font-bold">Total Amount: ₹{totalAmount.toFixed(2)}</h3>
+            <div className="mt-6 flex justify-between">
+              <div className="font-semibold text-lg text-yellow-300">
+                Total Amount: ₹{totalAmount.toFixed(2)}
+              </div>
               <button
                 onClick={saveBill}
-                className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition duration-300"
+                className="px-6 py-3 bg-green-700 text-white rounded-md hover:bg-green-800 text-xl"
               >
                 Save Bill
               </button>
